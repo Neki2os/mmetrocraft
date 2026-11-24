@@ -1,4 +1,4 @@
-name: Build Under Metro
+name: Build NEW Under Metro
 
 on:
   workflow_dispatch:
@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Download repository
+      - name: Download current repository
         uses: actions/checkout@v4
 
       - name: Set up Java 21
@@ -20,26 +20,34 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
-
-      - name: Extract source archive
-        run: unzip -q undermetro-src.zip -d mod-source
-
-      - name: Build mod
+      - name: Extract ONLY new archive
         shell: bash
         run: |
-          wrapper=$(find mod-source -type f -name gradlew -print -quit)
-          if [ -z "$wrapper" ]; then
-            echo "No gradlew found inside undermetro-src.zip"
+          test -f undermetro-new.zip
+          sha256sum undermetro-new.zip
+          unzip -q undermetro-new.zip -d fresh-source
+
+      - name: Find project and rebuild
+        shell: bash
+        run: |
+          mapfile -t wrappers < <(find fresh-source -type f -name gradlew)
+          if [ "${#wrappers[@]}" -ne 1 ]; then
+            echo "Expected exactly one Gradle project, found: ${#wrappers[@]}"
+            printf '%s\n' "${wrappers[@]}"
             exit 1
           fi
-          cd "$(dirname "$wrapper")"
-          bash ./gradlew build --no-daemon --stacktrace
+          cd "$(dirname "${wrappers[0]}")"
+          echo "Building project from: $PWD"
+          bash ./gradlew clean build \
+            --no-daemon \
+            --no-build-cache \
+            --no-configuration-cache \
+            --rerun-tasks \
+            --stacktrace
 
-      - name: Upload mod JAR
+      - name: Upload NEW mod
         uses: actions/upload-artifact@v4
         with:
-          name: undermetro-mod
-          path: mod-source/**/build/libs/*.jar
+          name: NEW-undermetro-${{ github.run_number }}
+          path: fresh-source/**/build/libs/*.jar
           if-no-files-found: error
